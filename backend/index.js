@@ -7,12 +7,11 @@ import { validateMercadoPagoSignature } from "./mpSignature.js";
 const app = express();
 
 const allowedOrigins = new Set([
-  "https://fitiq-frontend.onrender.com",
-  "http://localhost:5173",
   "https://www.quizlm.com.br",
   "https://quizlm.com.br",
   "http://localhost:5173",
 ]);
+
 
 const corsOptions = {
   origin: (origin, cb) => {
