@@ -107,12 +107,16 @@ app.post("/create-payment", async (req, res) => {
         notification_url: process.env.WEBHOOK_URL,
       },
     });
-
+    console.log("preferenceId:", response.id);
+    console.log("init_point:", response.init_point);
+    console.log("sandbox_init_point:", response.sandbox_init_point);
+    
     res.json({
       checkoutUrl: response.init_point,
       sandboxUrl: response.sandbox_init_point,
       preferenceId: response.id,
     });
+ 
   } catch (err) {
     console.error("Erro Mercado Pago:", err);
     res.status(500).json({ error: "Erro ao criar pagamento" });
