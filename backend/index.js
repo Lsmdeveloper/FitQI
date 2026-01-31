@@ -5,13 +5,19 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { validateMercadoPagoSignature } from "./mpSignature.js";
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ["https://www.quizlm.com.br", "http://localhost:5173"],
+  methods: ["GET", "POST"],
+}));
 app.use( express.json({
     verify: (req, res, buf) => {
       req.rawBody = buf.toString();
     },
   })
 );
+
+const PORT = process.env.PORT || 3333;
+app.listen(PORT, () => console.log("Listening", PORT));
 
 const mpClient = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN,
@@ -26,6 +32,28 @@ const failureUrl =
 
 app.get("/", (req, res) => {
   res.send("Backend FitIQ rodando");
+});
+
+
+app.post("/webhook", async (req, res) => {
+  try {    
+    const isValid = validateMercadoPagoSignature(req);
+    if (!isValid) {
+        return res.sendStatus(401); 
+    }
+    res.sendStatus(200);
+        const { type, data } = req.body;
+
+    if (type === "payment" && data?.id) {
+      const paymentId = data.id;
+      console.log(" Webhook recebido. paymentId:", paymentId);
+
+    } else {
+      console.log("Webhook recebido:", req.body);
+    }
+  } catch (e) {
+    console.error("Erro no webhook:", e);
+  }
 });
 
 app.post("/create-payment", async (req, res) => {
@@ -67,29 +95,3 @@ app.post("/create-payment", async (req, res) => {
     res.status(500).json({ error: "Erro ao criar pagamento" });
   }
 });
-
-app.listen(3333, () => {
-  console.log("Backend rodando em http://localhost:3333");
-});
-
-app.post("/webhook", async (req, res) => {
-  try {    
-    const isValid = validateMercadoPagoSignature(req);
-    if (!isValid) {
-        return res.sendStatus(401); 
-    }
-    res.sendStatus(200);
-        const { type, data } = req.body;
-
-    if (type === "payment" && data?.id) {
-      const paymentId = data.id;
-      console.log(" Webhook recebido. paymentId:", paymentId);
-
-    } else {
-      console.log("Webhook recebido:", req.body);
-    }
-  } catch (e) {
-    console.error("Erro no webhook:", e);
-  }
-});
-

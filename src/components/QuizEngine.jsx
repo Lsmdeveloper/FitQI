@@ -8,7 +8,7 @@ import {
 } from "../lib/userMetrics";
 
 export default function QuizEngine({ quiz }) {
-  const { title, questions, profiles } = quiz;
+  const { id: quizId, title, questions, profiles } = quiz;
   const metricsEnabled = quiz?.metrics?.enabled ?? false;
 
   const [step, setStep] = useState(0);
@@ -21,11 +21,15 @@ export default function QuizEngine({ quiz }) {
     activity: "",
   });
 
+  const [email, setEmail] = useState("");
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const [payLoading, setPayLoading] = useState(false);
+
   const done = step >= questions.length;
   const showMetrics = done && metricsEnabled && !metricsDone;
   const showResult = done && (!metricsEnabled || metricsDone);
   
-  const quizId = quiz.id;
   const winnerId = useMemo(() => {
     return done ? getWinner(score) : null;
   }, [done, score]);
@@ -52,7 +56,35 @@ export default function QuizEngine({ quiz }) {
     });
   };
 
-  // ✅ Tela de dados rápidos (após terminar as perguntas)
+  async function startCheckout() {
+    if (payLoading) return;
+
+    if (!emailOk) {
+      alert("Digite um e-mail válido para continuar.");
+      return;
+    }
+
+    try {
+      setPayLoading(true);
+
+      const res = await fetch("http://localhost:3333/create-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quizId, winnerId, metrics, score, email }),
+      });
+
+      if (!res.ok) throw new Error("Erro ao criar pagamento");
+
+      const data = await res.json();
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao iniciar pagamento. Tente novamente.");
+      setPayLoading(false);
+    }
+  }
+
+
   if (showMetrics) {
     const height = Number(metrics.heightCm);
     const weight = Number(metrics.weightKg);
@@ -168,8 +200,7 @@ export default function QuizEngine({ quiz }) {
     );
   }
 
-  // Tela de RESULTADO
-  if (showResult && winnerId) {
+  if (showResult && winnerId != null) {
     const bmi = metricsEnabled
       ? calcBmi(metrics.heightCm, metrics.weightKg)
       : null;
@@ -220,30 +251,34 @@ export default function QuizEngine({ quiz }) {
                 {tip && <p className="mt-2 text-sm text-white/70">{tip}</p>}
               </div>
             )}
+            <div className="mt-5">
+              <label className="text-xs text-white/60">Seu melhor e-mail</label>
 
+              <input
+                type="email"
+                placeholder="ex: seuemail@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-white/20"
+                required
+              />
+
+              {!emailOk && email.length > 3 && (
+                <p className="mt-2 text-xs text-white/50">
+                  Vamos enviar seu plano e o acesso por esse e-mail.
+                </p>
+              )}
+            </div>
             <div className="mt-6 space-y-3">
               <button
-                onClick={async () => {
-                    const res = await fetch("http://localhost:3333/create-payment", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        quizId,
-                        winnerId,
-                        metrics,
-                        score,
-                    }),
-                    });
-
-                    const data = await res.json();
-                    window.location.href = data.checkoutUrl; 
-                }}
-                className="cta-breathe w-full rounded-2xl bg-zinc-100 text-zinc-900 p-4 font-semibold hover:opacity-95 transition active:scale-[0.99]"
-                >
-                Desbloquear meu plano por R$ 19,90
-                </button>
-
-
+                onClick={startCheckout}
+                disabled={payLoading || !emailOk}
+                className="cta-breathe w-full rounded-2xl bg-zinc-100 text-zinc-900 p-4 font-semibold
+                          hover:opacity-95 transition active:scale-[0.99]
+                          disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {payLoading ? "Redirecionando..." : "Desbloquear meu plano por R$ 19,90"}
+              </button>
               <button
                 onClick={reset}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-white/90 hover:bg-white/10 transition"
@@ -277,8 +312,6 @@ export default function QuizEngine({ quiz }) {
       </div>
     );
   }
-
-  // ✅ Tela de PERGUNTAS
   return (
     <div className="min-h-screen grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
       <div className="absolute inset-0 opacity-60 [background:radial-gradient(800px_circle_at_50%_20%,rgba(255,255,255,0.08),transparent_60%)]" />
