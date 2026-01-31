@@ -6,21 +6,26 @@ import { validateMercadoPagoSignature } from "./mpSignature.js";
 
 const app = express();
 
-const allowedOrigins = [
+const allowedOrigins = new Set([
   "https://fitiq-frontend.onrender.com",
   "http://localhost:5173",
-];
+]);
 
-app.use(cors({
-  origin: function (origin, cb) {
+const corsOptions = {
+  origin: (origin, cb) => {
+
     if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error("Not allowed by CORS: " + origin));
+    if (allowedOrigins.has(origin)) return cb(null, true);
+
+    console.log("CORS blocked origin:", origin);
+    return cb(null, false); 
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
-}));
-app.options("*", cors());
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 app.use( express.json({
     verify: (req, res, buf) => {
