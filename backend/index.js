@@ -5,10 +5,23 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { validateMercadoPagoSignature } from "./mpSignature.js";
 
 const app = express();
+
+const allowedOrigins = [
+  "https://fitiq-frontend.onrender.com",
+  "http://localhost:5173",
+];
+
 app.use(cors({
-  origin: ["https://www.quizlm.com.br", "http://localhost:5173"],
-  methods: ["GET", "POST"],
+  origin: function (origin, cb) {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error("Not allowed by CORS: " + origin));
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
+app.options("*", cors());
+
 app.use( express.json({
     verify: (req, res, buf) => {
       req.rawBody = buf.toString();
