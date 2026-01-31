@@ -11,6 +11,8 @@ export default function QuizEngine({ quiz }) {
   const { id: quizId, title, questions, profiles } = quiz;
   const metricsEnabled = quiz?.metrics?.enabled ?? false;
 
+  const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+  
   const [step, setStep] = useState(0);
   const [score, setScore] = useState({});
   const [metricsDone, setMetricsDone] = useState(false);
@@ -67,7 +69,7 @@ export default function QuizEngine({ quiz }) {
     try {
       setPayLoading(true);
 
-      const res = await fetch("http://localhost:3333/create-payment", {
+      const res = await fetch(`${API_URL}/create-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quizId, winnerId, metrics, score, email }),
