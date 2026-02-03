@@ -94,7 +94,7 @@ export default function QuizEngine({ quiz }) {
       metrics.ageRange && metrics.activity && height > 50 && weight > 20;
 
     return (
-      <div className="min-h-screen grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
+      <div className="min-h-[80dvh] grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
         <div className="absolute inset-0 opacity-60 [background:radial-gradient(800px_circle_at_50%_20%,rgba(255,255,255,0.08),transparent_60%)]" />
 
         <div className="relative w-full flex justify-center">
@@ -210,7 +210,7 @@ export default function QuizEngine({ quiz }) {
     const target = metricsEnabled ? suggestTargetKg(metrics.weightKg) : null;
     const tip = metricsEnabled ? activityTip(metrics.activity) : null;
     return (
-      <div className="min-h-screen grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
+      <div className="min-h-[80dvh] grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
         <div className="absolute inset-0 opacity-60 [background:radial-gradient(800px_circle_at_50%_20%,rgba(255,255,255,0.08),transparent_60%)]" />
 
         <div className="relative w-full flex justify-center">
@@ -315,7 +315,7 @@ export default function QuizEngine({ quiz }) {
     );
   }
   return (
-    <div className="min-h-screen grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
+    <div className="min-h-[80dvh] grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
       <div className="absolute inset-0 opacity-60 [background:radial-gradient(800px_circle_at_50%_20%,rgba(255,255,255,0.08),transparent_60%)]" />
 
       <div className="relative w-full flex justify-center">
