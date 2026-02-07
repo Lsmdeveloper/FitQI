@@ -14,6 +14,8 @@ export default function QuizEngine({ quiz }) {
 
   const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
+  console.log("MP KEY =>", import.meta.env.VITE_MP_PUBLIC_KEY);
+  
   const [payOpen, setPayOpen] = useState(false);
 
   const [step, setStep] = useState(0);

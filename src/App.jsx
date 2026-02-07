@@ -5,10 +5,22 @@ import Header from "./components/Header"
 import Footer from "./components/Footer"
 import Thanks from "./pages/Thanks";
 import { initMercadoPago } from "@mercadopago/sdk-react";
+import { useEffect  } from "react";
 
-initMercadoPago(import.meta.env.VITE_MP_PUBLIC_KEY, { locale: "pt-BR" });
+
 
 export default function App() {
+  useEffect(() => {
+    const pk = import.meta.env.VITE_MP_PUBLIC_KEY;
+
+    if (!pk) {
+      console.error("VITE_MP_PUBLIC_KEY não definida");
+      return;
+    }
+
+    initMercadoPago(pk);
+  }, []);
+
   return (
     <>
       <Header/>
