@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect  } from "react";
 import { addWeights, getWinner } from "../lib/quizScoring";
+import CheckoutModal from "../components/CheckoutModal";
 import {
   calcBmi,
   bmiLabel,
@@ -12,7 +13,9 @@ export default function QuizEngine({ quiz }) {
   const metricsEnabled = quiz?.metrics?.enabled ?? false;
 
   const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-  
+
+  const [payOpen, setPayOpen] = useState(false);
+
   const [step, setStep] = useState(0);
   const [score, setScore] = useState({});
   const [metricsDone, setMetricsDone] = useState(false);
@@ -25,7 +28,6 @@ export default function QuizEngine({ quiz }) {
 
   const [email, setEmail] = useState("");
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
   const [payLoading, setPayLoading] = useState(false);
 
   const done = step >= questions.length;
@@ -57,35 +59,6 @@ export default function QuizEngine({ quiz }) {
       activity: "",
     });
   };
-
-  async function startCheckout() {
-    if (payLoading) return;
-
-    if (!emailOk) {
-      alert("Digite um e-mail válido para continuar.");
-      return;
-    }
-
-    try {
-      setPayLoading(true);
-
-      const res = await fetch(`${API_URL}/create-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quizId, winnerId, metrics, score, email }),
-      });
-
-      if (!res.ok) throw new Error("Erro ao criar pagamento");
-
-      const data = await res.json();
-      window.location.href = data.checkoutUrl;
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao iniciar pagamento. Tente novamente.");
-      setPayLoading(false);
-    }
-  }
-
 
   if (showMetrics) {
     const height = Number(metrics.heightCm);
@@ -209,6 +182,13 @@ export default function QuizEngine({ quiz }) {
     const bmiText = bmi ? bmiLabel(bmi) : null;
     const target = metricsEnabled ? suggestTargetKg(metrics.weightKg) : null;
     const tip = metricsEnabled ? activityTip(metrics.activity) : null;
+    function startCheckout() {
+      if (!emailOk) {
+        alert("Digite um e-mail válido para continuar.");
+        return;
+      }
+      setPayOpen(true);
+    }
     return (
       <div className="min-h-[80dvh] grid place-items-center p-6 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950">
         <div className="absolute inset-0 opacity-60 [background:radial-gradient(800px_circle_at_50%_20%,rgba(255,255,255,0.08),transparent_60%)]" />
@@ -266,6 +246,9 @@ export default function QuizEngine({ quiz }) {
               />
 
               {!emailOk && email.length > 3 && (
+                <p className="mt-2 text-xs text-red-300">E-mail inválido.</p>
+              )}
+              {emailOk && (
                 <p className="mt-2 text-xs text-white/50">
                   Vamos enviar seu plano e o acesso por esse e-mail.
                 </p>
@@ -274,12 +257,12 @@ export default function QuizEngine({ quiz }) {
             <div className="mt-6 space-y-3">
               <button
                 onClick={startCheckout}
-                disabled={payLoading || !emailOk}
+                disabled={!emailOk}
                 className="cta-breathe w-full rounded-2xl bg-zinc-100 text-zinc-900 p-4 font-semibold
                           hover:opacity-95 transition active:scale-[0.99]
                           disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {payLoading ? "Redirecionando..." : "Desbloquear meu plano por R$ 19,90"}
+                {payLoading ? "Gerando pagamento..." : "Desbloquear meu plano por R$ 19,90"}
               </button>
               <button
                 onClick={reset}
@@ -288,7 +271,14 @@ export default function QuizEngine({ quiz }) {
                 Refazer diagnóstico
               </button>
             </div>
-
+            <CheckoutModal
+              open={payOpen}
+              onClose={() => setPayOpen(false)}
+              amount={19.9}
+              email={email}
+              meta={{ quizId, winnerId, metrics, score }}
+            />
+           
             <p className="mt-6 text-xs text-white/50">
               🔒 Seus dados não serão compartilhados
             </p>
