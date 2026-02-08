@@ -10,12 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mercadopago/sdk-react": "^1.0.7",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "lucide-react": "^0.563.0",
     "mercadopago": "^2.12.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@mercadopago/sdk-react": "^1.0.7",
     "react-router-dom": "^7.13.0"
   },
   "devDependencies": {

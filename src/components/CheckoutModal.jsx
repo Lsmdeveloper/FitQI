@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import PaymentBrick from "./PaymentBrick";
+import { Copy, Check } from "lucide-react";
 
 function onlyDigits(v) {
   return (v || "").replace(/\D/g, "");
@@ -43,19 +44,30 @@ export default function CheckoutModal({
   amount = 19.9,
   email = "",
   meta = {},
-  defaultMethod = "pix", // "pix" | "credit_card" | "debit_card"
+  defaultMethod = "pix", 
 }) {
   const [pix, setPix] = useState(null);
   const [paymentId, setPaymentId] = useState(null);
 
   const [doc, setDoc] = useState("");
   const [docError, setDocError] = useState("");
-
-  // ✅ CPF/CNPJ em REF (não quebra memo do Brick)
   const docDigitsRef = useRef("");
-
   const [method, setMethod] = useState(defaultMethod);
-
+  
+  const handleCopyPix = async () => {
+    try {
+      await navigator.clipboard.writeText(pix.qr_code);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = pix.qr_code;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   const initialization = useMemo(
     () => ({
       amount: Number(amount),
@@ -105,13 +117,16 @@ export default function CheckoutModal({
   const customization = useMemo(() => {
     if (method === "pix") return { paymentMethods: { bankTransfer: "all" } };
     if (method === "credit_card") return { paymentMethods: { creditCard: "all" } };
-    return { paymentMethods: { debitCard: "all" } };
+    return { paymentMethods: { creditCard: "all" } }; 
   }, [method]);
+
 
   const digits = useMemo(() => onlyDigits(doc), [doc]);
   const showDoc = method === "pix";
   const docOk = !showDoc || digits.length === 11 || digits.length === 14;
-
+  const blockBrick = showDoc && !docOk;
+  const [showPixCode, setShowPixCode] = useState(false);
+  const [copied, setCopied] = useState(false);
   const handleClose = useCallback(() => {
     setPix(null);
     setPaymentId(null);
@@ -122,7 +137,6 @@ export default function CheckoutModal({
     onClose?.();
   }, [defaultMethod, onClose]);
 
-  // ✅ onSubmit NÃO depende de `doc` (state)
   const onSubmit = useCallback(
     async ({ selectedPaymentMethod, formData }) => {
       const isPix = method === "pix";
@@ -165,8 +179,6 @@ export default function CheckoutModal({
       });
 
       const data = await res.json();
-      console.log("CREATE-PAYMENT RESPONSE:", data);
-
       if (!res.ok) {
         throw new Error(data?.error || data?.message || "Falha ao processar pagamento");
       }
@@ -189,7 +201,7 @@ export default function CheckoutModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center">
       <div className="w-full max-w-md rounded-2xl bg-white p-4">
         <div className="flex items-center justify-between">
           <p className="font-semibold">Finalizar pagamento</p>
@@ -224,7 +236,58 @@ export default function CheckoutModal({
               </a>
             )}
 
-            <p className="mt-2 text-xs text-gray-500">ID do pagamento: {paymentId}</p>
+            {/* ✅ Pix Copia e Cola + Copiar */}
+            {!!pix.qr_code && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Pix copia e cola</p>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPixCode((v) => !v)}
+                      className="text-xs underline text-gray-600"
+                    >
+                      {showPixCode ? "Ocultar" : "Ver código"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyPix}
+                      className={`
+                        flex items-center gap-2
+                        rounded-lg px-3 py-1.5
+                        text-sm font-medium
+                        transition
+                        ${
+                          copied
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                        }
+                      `}
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      {copied ? "Copiado" : "Copiar"}
+                    </button>
+                  </div>
+                </div>
+
+                {!showPixCode && (
+                  <div className="mt-2 rounded-xl border bg-gray-50 p-3 text-xs break-all text-gray-700">
+                    {pix.qr_code.slice(0, 40)}…{pix.qr_code.slice(-40)}
+                  </div>
+                )}
+
+                {showPixCode && (
+                  <textarea
+                    readOnly
+                    value={pix.qr_code}
+                    className="mt-2 w-full rounded-xl border p-3 text-xs"
+                    rows={4}
+                  />
+                )}
+              </div>
+            )}
+            <p className="mt-3 text-xs text-gray-500">ID do pagamento: {paymentId}</p>
           </div>
         ) : (
           <>
@@ -246,16 +309,7 @@ export default function CheckoutModal({
                 }`}
               >
                 Crédito
-              </button>
-              <button
-                type="button"
-                onClick={() => setMethod("debit_card")}
-                className={`flex-1 rounded-xl border py-2 text-sm ${
-                  method === "debit_card" ? "border-blue-600" : ""
-                }`}
-              >
-                Débito
-              </button>
+              </button>            
             </div>
 
             {showDoc && (
@@ -267,7 +321,7 @@ export default function CheckoutModal({
                   onChange={(e) => {
                     const masked = maskCpfCnpj(e.target.value);
                     setDoc(masked);
-                    docDigitsRef.current = onlyDigits(masked); // ✅ atualiza ref sem mexer no Brick
+                    docDigitsRef.current = onlyDigits(masked); 
 
                     if (docError) setDocError("");
                   }}
@@ -288,9 +342,9 @@ export default function CheckoutModal({
                 )}
               </div>
             )}
-
-            <div className={`min-h-[420px] ${!docOk ? "opacity-40 pointer-events-none" : ""}`}>
+            <div className={`min-h-[420px] ${blockBrick ? "opacity-40 pointer-events-none" : ""}`}>
               <PaymentBrick
+                key={method}
                 initialization={initialization}
                 customization={customization}
                 onSubmit={onSubmit}
