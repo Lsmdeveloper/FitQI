@@ -108,10 +108,20 @@ export default function CheckoutModal({
   }, [paymentId, pix]);
 
   const customization = useMemo(() => {
-    if (method === "pix") return { paymentMethods: { bankTransfer: "all" } };
-    if (method === "credit_card")
-      return { paymentMethods: { creditCard: "all" } };
-    return { paymentMethods: { creditCard: "all" } };
+    const paymentMethods =
+      method === "pix"
+        ? { bankTransfer: "all" }
+        : { creditCard: "all" };
+
+    return {
+      paymentMethods,
+      style: {
+        variables: {
+          formHorizontalPadding: "0px",
+          formVerticalPadding: "0px",
+        },
+      },
+    };
   }, [method]);
 
   const digits = useMemo(() => onlyDigits(doc), [doc]);
@@ -200,13 +210,13 @@ export default function CheckoutModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60">
-      <div className="h-full w-full overflow-y-auto p-4 flex items-start justify-center sm:items-center">
+      <div className="h-full w-full overflow-y-auto flex items-start justify-center sm:items-center">
 
         <div
           className="w-full max-w-md rounded-2xl bg-white p-4 max-h-[92vh] overflow-y-auto"
           style={{
             WebkitOverflowScrolling: "touch",
-            paddingBottom: "max(6rem, env(safe-area-inset-bottom))",
+            paddingBottom: "max(3rem, env(safe-area-inset-bottom))",
           }}
         >
           <div className="flex items-center justify-between">

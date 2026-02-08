@@ -30,7 +30,11 @@ body {
 #payment-form{
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+  padding: 0 !important;
 }
 h1.svelte-r6lpve {
+  padding: 0 !important;
+}
+.form.visible-BQhSi2.svelte-734qla {
   padding: 0 !important;
 }
