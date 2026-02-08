@@ -44,7 +44,7 @@ export default function CheckoutModal({
   amount = 19.9,
   email = "",
   meta = {},
-  defaultMethod = "pix", 
+  defaultMethod = "pix",
 }) {
   const [pix, setPix] = useState(null);
   const [paymentId, setPaymentId] = useState(null);
@@ -53,7 +53,7 @@ export default function CheckoutModal({
   const [docError, setDocError] = useState("");
   const docDigitsRef = useRef("");
   const [method, setMethod] = useState(defaultMethod);
-  
+
   const handleCopyPix = async () => {
     try {
       await navigator.clipboard.writeText(pix.qr_code);
@@ -71,9 +71,9 @@ export default function CheckoutModal({
   const initialization = useMemo(
     () => ({
       amount: Number(amount),
-      payer: { email: email || "" }, 
+      payer: { email: email || "" },
     }),
-    [amount, email]
+    [amount, email],
   );
   useEffect(() => {
     // só roda quando existir pagamento Pix ativo
@@ -85,24 +85,17 @@ export default function CheckoutModal({
     const checkStatus = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/payment-status/${paymentId}`
+          `${import.meta.env.VITE_API_URL}/payment-status/${paymentId}`,
         );
-
         const data = await res.json();
-
         if (!alive) return;
-
         if (data?.status === "approved") {
           window.location.href = "/thanks";
           return;
         }
-
-        // timeout de segurança: 10 minutos
         if (Date.now() - startedAt > 10 * 60 * 1000) return;
-
-        setTimeout(checkStatus, 3000); // tenta de novo em 3s
+        setTimeout(checkStatus, 3000);
       } catch (err) {
-        // erro de rede → tenta novamente
         if (alive) setTimeout(checkStatus, 5000);
       }
     };
@@ -116,10 +109,10 @@ export default function CheckoutModal({
 
   const customization = useMemo(() => {
     if (method === "pix") return { paymentMethods: { bankTransfer: "all" } };
-    if (method === "credit_card") return { paymentMethods: { creditCard: "all" } };
-    return { paymentMethods: { creditCard: "all" } }; 
+    if (method === "credit_card")
+      return { paymentMethods: { creditCard: "all" } };
+    return { paymentMethods: { creditCard: "all" } };
   }, [method]);
-
 
   const digits = useMemo(() => onlyDigits(doc), [doc]);
   const showDoc = method === "pix";
@@ -166,21 +159,26 @@ export default function CheckoutModal({
         setDocError("");
       }
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/create-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: Number(amount),
-          payerEmail: email,
-          selectedPaymentMethod,
-          formData: nextFormData,
-          meta,
-        }),
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/create-payment`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Number(amount),
+            payerEmail: email,
+            selectedPaymentMethod,
+            formData: nextFormData,
+            meta,
+          }),
+        },
+      );
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || data?.message || "Falha ao processar pagamento");
+        throw new Error(
+          data?.error || data?.message || "Falha ao processar pagamento",
+        );
       }
 
       if (data.status === "approved") {
@@ -195,65 +193,73 @@ export default function CheckoutModal({
 
       return data;
     },
-    [amount, email, meta, method]
+    [amount, email, meta, method],
   );
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center">
-      <div className="w-full max-w-md rounded-2xl bg-white p-4">
-        <div className="flex items-center justify-between">
-          <p className="font-semibold">Finalizar pagamento</p>
-          <button onClick={handleClose} className="px-3 py-1 rounded-lg border">
-            Fechar
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 bg-black/60">
+      <div className="h-full w-full overflow-y-auto p-4 flex items-start justify-center sm:items-center">
 
-        {pix?.qr_code_base64 ? (
-          <div className="mt-4">
-            <p className="font-semibold">Pague com Pix</p>
-            <p className="text-sm text-gray-600 mt-1">
-              Escaneie o QR Code no app do seu banco.
-            </p>
+        <div
+          className="w-full max-w-md rounded-2xl bg-white p-4 max-h-[92vh] overflow-y-auto"
+          style={{
+            WebkitOverflowScrolling: "touch",
+            paddingBottom: "max(6rem, env(safe-area-inset-bottom))",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <p className="font-semibold">Finalizar pagamento</p>
+            <button onClick={handleClose} className="px-3 py-1 rounded-lg border">
+              Fechar
+            </button>
+          </div>
 
-            <div className="mt-3 grid place-items-center">
-              <img
-                src={`data:image/png;base64,${pix.qr_code_base64}`}
-                alt="QR Code Pix"
-                className="w-56 h-56"
-              />
-            </div>
+          {pix?.qr_code_base64 ? (
+            <div className="mt-4">
+              <p className="font-semibold">Pague com Pix</p>
+              <p className="text-sm text-gray-600 mt-1">
+                Escaneie o QR Code no app do seu banco.
+              </p>
 
-            {!!pix.ticket_url && (
-              <a
-                href={pix.ticket_url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 block text-center underline text-sm"
-              >
-                Abrir link do Pix
-              </a>
-            )}
+              <div className="mt-3 grid place-items-center">
+                <img
+                  src={`data:image/png;base64,${pix.qr_code_base64}`}
+                  alt="QR Code Pix"
+                  className="w-56 h-56"
+                />
+              </div>
 
-            {/* ✅ Pix Copia e Cola + Copiar */}
-            {!!pix.qr_code && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Pix copia e cola</p>
+              {!!pix.ticket_url && (
+                <a
+                  href={pix.ticket_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 block text-center underline text-sm"
+                >
+                  Abrir link do Pix
+                </a>
+              )}
 
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowPixCode((v) => !v)}
-                      className="text-xs underline text-gray-600"
-                    >
-                      {showPixCode ? "Ocultar" : "Ver código"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCopyPix}
-                      className={`
+              {/* ✅ Pix Copia e Cola + Copiar */}
+              {!!pix.qr_code && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Pix copia e cola</p>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowPixCode((v) => !v)}
+                        className="text-xs underline text-gray-600"
+                      >
+                        {showPixCode ? "Ocultar" : "Ver código"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyPix}
+                        className={`
                         flex items-center gap-2
                         rounded-lg px-3 py-1.5
                         text-sm font-medium
@@ -264,100 +270,105 @@ export default function CheckoutModal({
                             : "bg-gray-100 hover:bg-gray-200 text-gray-800"
                         }
                       `}
-                    >
-                      {copied ? <Check size={16} /> : <Copy size={16} />}
-                      {copied ? "Copiado" : "Copiar"}
-                    </button>
+                      >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                        {copied ? "Copiado" : "Copiar"}
+                      </button>
+                    </div>
                   </div>
+
+                  {!showPixCode && (
+                    <div className="mt-2 rounded-xl border bg-gray-50 p-3 text-xs break-all text-gray-700">
+                      {pix.qr_code.slice(0, 40)}…{pix.qr_code.slice(-40)}
+                    </div>
+                  )}
+
+                  {showPixCode && (
+                    <textarea
+                      readOnly
+                      value={pix.qr_code}
+                      className="mt-2 w-full rounded-xl border p-3 text-xs"
+                      rows={4}
+                    />
+                  )}
                 </div>
-
-                {!showPixCode && (
-                  <div className="mt-2 rounded-xl border bg-gray-50 p-3 text-xs break-all text-gray-700">
-                    {pix.qr_code.slice(0, 40)}…{pix.qr_code.slice(-40)}
-                  </div>
-                )}
-
-                {showPixCode && (
-                  <textarea
-                    readOnly
-                    value={pix.qr_code}
-                    className="mt-2 w-full rounded-xl border p-3 text-xs"
-                    rows={4}
-                  />
-                )}
-              </div>
-            )}
-            <p className="mt-3 text-xs text-gray-500">ID do pagamento: {paymentId}</p>
-          </div>
-        ) : (
-          <>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setMethod("pix")}
-                className={`flex-1 rounded-xl border py-2 text-sm ${
-                  method === "pix" ? "border-blue-600" : ""
-                }`}
-              >
-                Pix
-              </button>
-              <button
-                type="button"
-                onClick={() => setMethod("credit_card")}
-                className={`flex-1 rounded-xl border py-2 text-sm ${
-                  method === "credit_card" ? "border-blue-600" : ""
-                }`}
-              >
-                Crédito
-              </button>            
-            </div>
-
-            {showDoc && (
-              <div className="mt-3">
-                <label className="text-sm font-medium">CPF/CNPJ (obrigatório para Pix)</label>
-
-                <input
-                  value={doc}
-                  onChange={(e) => {
-                    const masked = maskCpfCnpj(e.target.value);
-                    setDoc(masked);
-                    docDigitsRef.current = onlyDigits(masked); 
-
-                    if (docError) setDocError("");
-                  }}
-                  placeholder="000.000.000-00"
-                  className={`mt-1 w-full rounded-xl border p-3 ${
-                    docError ? "border-red-500" : ""
-                  }`}
-                  inputMode="numeric"
-                  autoComplete="off"
-                />
-
-                {docError ? (
-                  <p className="mt-1 text-sm text-red-600">{docError}</p>
-                ) : (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Usado apenas para gerar o Pix no Mercado Pago.
-                  </p>
-                )}
-              </div>
-            )}
-            <div className={`min-h-[420px] ${blockBrick ? "opacity-40 pointer-events-none" : ""}`}>
-              <PaymentBrick
-                key={method}
-                initialization={initialization}
-                customization={customization}
-                onSubmit={onSubmit}
-              />
-            </div>
-
-            {showDoc && !docOk && (
-              <p className="mt-2 text-xs text-red-600">
-                Preencha CPF/CNPJ para liberar o pagamento via Pix.
+              )}
+              <p className="mt-3 text-xs text-gray-500">
+                ID do pagamento: {paymentId}
               </p>
-            )}
-          </>
-        )}
+            </div>
+          ) : (
+            <>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMethod("pix")}
+                  className={`flex-1 rounded-xl border py-2 text-sm ${
+                    method === "pix" ? "border-blue-600" : ""
+                  }`}
+                >
+                  Pix
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMethod("credit_card")}
+                  className={`flex-1 rounded-xl border py-2 text-sm ${
+                    method === "credit_card" ? "border-blue-600" : ""
+                  }`}
+                >
+                  Crédito
+                </button>
+              </div>
+
+              {showDoc && (
+                <div className="mt-3">
+                  <label className="text-sm font-medium">
+                    CPF/CNPJ (obrigatório para Pix)
+                  </label>
+
+                  <input
+                    value={doc}
+                    onChange={(e) => {
+                      const masked = maskCpfCnpj(e.target.value);
+                      setDoc(masked);
+                      docDigitsRef.current = onlyDigits(masked);
+
+                      if (docError) setDocError("");
+                    }}
+                    placeholder="000.000.000-00"
+                    className={`mt-1 w-full rounded-xl border p-3 ${
+                      docError ? "border-red-500" : ""
+                    }`}
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
+
+                  {docError ? (
+                    <p className="mt-1 text-sm text-red-600">{docError}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Usado apenas para gerar o Pix no Mercado Pago.
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className={`${blockBrick ? "opacity-40 pointer-events-none" : ""} mt-3 md:min-h-[420px]`}>
+                <PaymentBrick
+                  key={method}
+                  initialization={initialization}
+                  customization={customization}
+                  onSubmit={onSubmit}
+                />
+              </div>
+
+              {showDoc && !docOk && (
+                <p className="mt-2 text-xs text-red-600">
+                  Preencha CPF/CNPJ para liberar o pagamento via Pix.
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
