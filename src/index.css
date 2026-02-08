@@ -26,3 +26,11 @@ body {
   animation: breathe 1.8s ease-in-out infinite;
   transform-origin: center;
 }
+
+#payment-form{
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+h1.svelte-r6lpve {
+  padding: 0 !important;
+}

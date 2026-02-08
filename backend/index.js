@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { MercadoPagoConfig, Payment  } from "mercadopago";
+import { MercadoPagoConfig, Payment } from "mercadopago";
 import { validateMercadoPagoSignature } from "./mpSignature.js";
 
 const app = express();
@@ -14,26 +14,19 @@ const allowedOrigins = new Set([
 
 const corsOptions = {
   origin: (origin, cb) => {
-
     if (!origin) return cb(null, true);
     if (allowedOrigins.has(origin)) return cb(null, true);
-
     console.log("CORS blocked origin:", origin);
-    return cb(null, false); 
+    return cb(null, false);
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
-app.use((req, res, next) => {
-  if (req.method === "OPTIONS") {
-    return cors(corsOptions)(req, res, () => res.sendStatus(204));
-  }
-  next();
-});
-
+// Importante: para validar assinatura, precisamos do rawBody
 app.use(
   express.json({
     limit: "1mb",
@@ -50,57 +43,52 @@ if (!MP_ACCESS_TOKEN) {
 }
 
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
-const payment = new Payment(mpClient);
+const paymentClient = new Payment(mpClient);
 
 const PORT = process.env.PORT || 3333;
-
-const successUrl =
-  (process.env.FRONTEND_SUCCESS_URL || "http://localhost:5173/sucesso").trim();
-const failureUrl =
-  (process.env.FRONTEND_FAILURE_URL || "http://localhost:5173/erro").trim();
-
 
 app.get("/", (req, res) => {
   res.send("Backend FitIQ rodando");
 });
 
-app.post("/webhook", async (req, res) => {
-  try {    
-    const isValid = validateMercadoPagoSignature(req);
-    if (!isValid) {
-        return res.sendStatus(401); 
-    }
-    res.sendStatus(200);
-    const { type, data } = req.body || {};
-    const paymentId = data?.id;
+// ===== Helpers =====
 
-    if (type === "payment" && paymentId) {
-      console.log("✅Webhook recebido. paymentId:", paymentId);
+function extractPaymentId(req) {
+  // MP pode mandar:
+  // body: { type: "payment", data: { id: "123" } }
+  // query: ?data.id=123&type=payment
+  return (
+    req.body?.data?.id ||
+    req.body?.id ||
+    req.query?.["data.id"] ||
+    req.query?.id ||
+    null
+  );
+}
 
-    } else {
-      console.log("Webhook recebido:", req.body);
-    }
-  } catch (e) {
-    console.error("Erro no webhook:", e);
-  }
-});
+async function getPaymentById(paymentId) {
+  // SDK novo: paymentClient.get({ id })
+  const resp = await paymentClient.get({ id: String(paymentId) });
+  return resp;
+}
 
-/**
- * CREATE PAYMENT (Checkout Transparente / Bricks)
- * Esse endpoint é o que o Payment Brick chama no onSubmit.
- *
- * Espera algo assim do frontend:
- * {
- *   "amount": 19.9,
- *   "payerEmail": "x@y.com",
- *   "quizId": "...",
- *   "winnerId": "...",
- *   "metrics": {...},
- *   "score": {...},
- *   "formData": {...} // do Payment Brick
- * }
- */
+async function fulfillApprovedPayment(p) {
+  console.log("✅ PAGAMENTO APROVADO:", {
+    id: p.id,
+    email: p.payer?.email,
+    external_reference: p.external_reference,
+    status: p.status,
+  });
 
+  // TODO: aqui você libera o acesso:
+  // - salvar no banco
+  // - gerar / liberar PDF
+  // - enviar email
+}
+
+// ===== Routes =====
+
+// 1) Criar pagamento (Brick -> backend)
 app.post("/create-payment", async (req, res) => {
   try {
     const { amount, payerEmail, formData, meta } = req.body || {};
@@ -116,45 +104,47 @@ app.post("/create-payment", async (req, res) => {
       return res.status(400).json({ error: "formData é obrigatório" });
     }
 
-    // Monta o body do payment usando o que vem do Brick
-    // e adiciona metadata do FitIQ
+    // Descobre se é Pix
+    const methodId = (formData?.payment_method_id || "").toLowerCase();
+    const isPix = methodId === "pix";
+
+    // Para Pix, exige CPF/CNPJ (Mercado Pago costuma exigir)
+    if (isPix) {
+      const id = formData?.payer?.identification;
+      if (!id?.type || !id?.number) {
+        return res.status(400).json({
+          error: "Para PIX, informe CPF/CNPJ em payer.identification (type/number).",
+        });
+      }
+    }
+
+    // Monta body final
     const body = {
+      ...formData,
       transaction_amount: txAmount,
       description: "FitIQ • Plano Personalizado",
       payer: {
-        email: payerEmail,
         ...(formData.payer || {}),
+        email: payerEmail,
       },
-
-      // IMPORTANTÍSSIMO: o Brick envia os campos de cada método.
-      // Ex:
-      // - Cartão: token, installments, payment_method_id, issuer_id, payer.identification...
-      // - Pix: payment_method_id geralmente "pix" ou ele define o tipo (depende do Brick)
-      ...formData,
-
       metadata: {
-        ...(meta || {}),
         ...(formData.metadata || {}),
+        ...(meta || {}),
       },
-
-      // referência sua (para você liberar acesso depois)
       external_reference: formData.external_reference || `fitiq_${Date.now()}`,
     };
 
-    // Segurança: não deixe o front sobrescrever seu amount
     body.transaction_amount = txAmount;
 
-    const mpResp = await payment.create({ body });
-    const data = mpResp?.api_response?.data || mpResp;
+    const created = await paymentClient.create({ body });
 
-    // PIX: pega QR se existir
-    const tx = data?.point_of_interaction?.transaction_data;
+    const tx = created?.point_of_interaction?.transaction_data;
 
     return res.status(200).json({
-      id: data?.id,
-      status: data?.status,
-      status_detail: data?.status_detail,
-      payment_method_id: data?.payment_method_id,
+      id: created?.id,
+      status: created?.status,
+      status_detail: created?.status_detail,
+      payment_method_id: created?.payment_method_id,
       pix: tx
         ? {
             qr_code: tx.qr_code,
@@ -164,7 +154,7 @@ app.post("/create-payment", async (req, res) => {
         : null,
     });
   } catch (err) {
-    console.error("Erro Mercado Pago create-payment:", err);
+    console.error("Erro Mercado Pago create-payment:", err?.cause || err);
 
     const mpMsg =
       err?.cause?.[0]?.description ||
@@ -175,5 +165,49 @@ app.post("/create-payment", async (req, res) => {
     return res.status(400).json({ error: mpMsg });
   }
 });
+
+// 2) Polling pro front checar status
+app.get("/payment-status/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const p = await getPaymentById(id);
+
+    return res.json({
+      id: p.id,
+      status: p.status,
+      status_detail: p.status_detail,
+    });
+  } catch (err) {
+    console.error("Erro ao consultar payment-status:", err?.cause || err);
+    return res.status(400).json({ error: "Falha ao consultar pagamento" });
+  }
+});
+
+// 3) Webhook
+app.post("/webhook", async (req, res) => {
+  res.sendStatus(200);
+
+  try {
+    const paymentId =
+      req.body?.data?.id || req.query?.["data.id"] || req.query?.id;
+
+    if (!paymentId) return;
+
+    // busca detalhes do pagamento na API do MP
+    const mpResp = await payment.get({ id: paymentId });
+    const p = mpResp?.api_response?.data || mpResp;
+
+    console.log("WEBHOOK payment:", paymentId, p?.status);
+
+    if (p?.status === "approved") {
+
+      db.payments.update(paymentId, { status: "approved" })
+      // e pode disparar entrega do ebook
+    }
+  } catch (err) {
+    console.error("webhook error:", err);
+  }
+});
+
 
 app.listen(PORT, () => console.log("Listening", PORT));
