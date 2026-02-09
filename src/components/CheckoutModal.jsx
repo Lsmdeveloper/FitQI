@@ -90,7 +90,7 @@ export default function CheckoutModal({
         const data = await res.json();
         if (!alive) return;
         if (data?.status === "approved") {
-          window.location.href = "/thanks";
+          window.location.href = "/#/thanks";
           return;
         }
         if (Date.now() - startedAt > 10 * 60 * 1000) return;
@@ -192,7 +192,7 @@ export default function CheckoutModal({
       }
 
       if (data.status === "approved") {
-        window.location.href = "/thanks";
+        window.location.href = "/#/thanks";
         return data;
       }
 
