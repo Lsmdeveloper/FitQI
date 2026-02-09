@@ -54,9 +54,6 @@ app.get("/", (req, res) => {
 // ===== Helpers =====
 
 function extractPaymentId(req) {
-  // MP pode mandar:
-  // body: { type: "payment", data: { id: "123" } }
-  // query: ?data.id=123&type=payment
   return (
     req.body?.data?.id ||
     req.body?.id ||
@@ -87,8 +84,6 @@ async function fulfillApprovedPayment(p) {
 }
 
 // ===== Routes =====
-
-// 1) Criar pagamento (Brick -> backend)
 app.post("/create-payment", async (req, res) => {
   try {
     const { amount, payerEmail, formData, meta } = req.body || {};
@@ -118,7 +113,6 @@ app.post("/create-payment", async (req, res) => {
       }
     }
 
-    // Monta body final
     const body = {
       ...formData,
       transaction_amount: txAmount,
@@ -192,8 +186,6 @@ app.post("/webhook", async (req, res) => {
       req.body?.data?.id || req.query?.["data.id"] || req.query?.id;
 
     if (!paymentId) return;
-
-    // busca detalhes do pagamento na API do MP
     const mpResp = await payment.get({ id: paymentId });
     const p = mpResp?.api_response?.data || mpResp;
 
@@ -202,7 +194,6 @@ app.post("/webhook", async (req, res) => {
     if (p?.status === "approved") {
 
       db.payments.update(paymentId, { status: "approved" })
-      // e pode disparar entrega do ebook
     }
   } catch (err) {
     console.error("webhook error:", err);

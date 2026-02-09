@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import PaymentBrick from "./PaymentBrick";
 import { Copy, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 function onlyDigits(v) {
   return (v || "").replace(/\D/g, "");
@@ -54,6 +55,8 @@ export default function CheckoutModal({
   const docDigitsRef = useRef("");
   const [method, setMethod] = useState(defaultMethod);
 
+  const navigate = useNavigate();
+
   const handleCopyPix = async () => {
     try {
       await navigator.clipboard.writeText(pix.qr_code);
@@ -75,28 +78,33 @@ export default function CheckoutModal({
     }),
     [amount, email],
   );
+
   useEffect(() => {
-    // só roda quando existir pagamento Pix ativo
-    if (!paymentId || !pix) return;
+    if (!open) return;
+    if (!paymentId) return;
 
     let alive = true;
+    let timeoutId = null;
     const startedAt = Date.now();
 
     const checkStatus = async () => {
       try {
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/payment-status/${paymentId}`,
+          { cache: "no-store" }
         );
         const data = await res.json();
         if (!alive) return;
         if (data?.status === "approved") {
-          window.location.href = "/#/thanks";
+          navigate("/thanks", { replace: true });
           return;
         }
         if (Date.now() - startedAt > 10 * 60 * 1000) return;
-        setTimeout(checkStatus, 3000);
+
+        timeoutId = setTimeout(checkStatus, 3000);
       } catch (err) {
-        if (alive) setTimeout(checkStatus, 5000);
+        if (!alive) return;
+        timeoutId = setTimeout(checkStatus, 5000);
       }
     };
 
@@ -104,8 +112,9 @@ export default function CheckoutModal({
 
     return () => {
       alive = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [paymentId, pix]);
+  }, [open, paymentId, navigate]);
 
   const customization = useMemo(() => {
   const paymentMethods =
@@ -190,20 +199,17 @@ export default function CheckoutModal({
           data?.error || data?.message || "Falha ao processar pagamento",
         );
       }
-
       if (data.status === "approved") {
-        window.location.href = "/#/thanks";
+        navigate("/thanks", { replace: true });
         return data;
       }
-
       if (data?.pix?.qr_code_base64) {
         setPaymentId(data.id);
         setPix(data.pix);
       }
-
       return data;
     },
-    [amount, email, meta, method],
+    [amount, email, meta, method, navigate],
   );
 
   if (!open) return null;
@@ -211,30 +217,21 @@ export default function CheckoutModal({
   return (
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
-      <button
-        type="button"
-        aria-label="Fechar"
+      <div
         onClick={handleClose}
-        className="absolute inset-0 bg-black/60"
+        className="fixed inset-0 bg-black/60"
       />
-
       {/* Wrapper central */}
-      <div className="relative z-10 flex min-h-full items-center justify-center sm:p-4">
+        <div className="relative z-10 flex min-h-[100dvh] items-start justify-center">
         {/* Card com scroll interno */}
         <div
-          className="
-            w-full max-w-md
-            rounded-2xl bg-white
-            shadow-2xl
-            max-h-[92dvh] overflow-y-auto
-          "
+          className="w-full max-w-md rounded-2xl bg-white"
+          onClick={(e) => e.stopPropagation()}
           style={{
-            WebkitOverflowScrolling: "touch",
-            paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+            paddingBottom: "env(safe-area-inset-bottom)",
           }}
         >
-          {/* Header fixo visualmente (fica no topo do card) */}
-          <div className="sticky top-0 z-20 bg-white px-4 pt-4 pb-3 border-b">
+          <div className="sticky top-0 z-20 bg-white px-4 pb-3 border-b">
             <div className="flex items-center justify-between">
               <p className="font-semibold">Finalizar pagamento</p>
               <button
@@ -245,8 +242,6 @@ export default function CheckoutModal({
                 Fechar
               </button>
             </div>
-
-            {/* seletor Pix / Crédito */}
             {!pix?.qr_code_base64 && (
               <div className="mt-3 flex gap-2">
                 <button
@@ -270,8 +265,6 @@ export default function CheckoutModal({
               </div>
             )}
           </div>
-
-          {/* Corpo rolável */}
           <div className="px-4 pb-4">
             {pix?.qr_code_base64 ? (
               <div className="pt-4">
@@ -279,7 +272,6 @@ export default function CheckoutModal({
                 <p className="text-sm text-gray-600 mt-1">
                   Escaneie o QR Code no app do seu banco.
                 </p>
-
                 <div className="mt-3 grid place-items-center">
                   <img
                     src={`data:image/png;base64,${pix.qr_code_base64}`}
@@ -287,7 +279,6 @@ export default function CheckoutModal({
                     className="w-56 h-56"
                   />
                 </div>
-
                 {!!pix.ticket_url && (
                   <a
                     href={pix.ticket_url}
@@ -298,13 +289,10 @@ export default function CheckoutModal({
                     Abrir link do Pix
                   </a>
                 )}
-
-                {/* Pix copia e cola (seu bloco) */}
                 {!!pix.qr_code && (
                   <div className="mt-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Pix copia e cola</p>
-
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
@@ -333,13 +321,11 @@ export default function CheckoutModal({
                       </button>
                     </div>
                   </div>
-
                   {!showPixCode && (
                     <div className="mt-2 rounded-xl border bg-gray-50 p-3 text-xs break-all text-gray-700">
                       {pix.qr_code.slice(0, 40)}…{pix.qr_code.slice(-40)}
                   </div>
                 )}
-
                   {showPixCode && (
                     <textarea
                       readOnly
@@ -356,7 +342,6 @@ export default function CheckoutModal({
               </div>
             ) : (
               <>
-                {/* CPF/CNPJ só no Pix */}
                 {showDoc && (
                   <div className="pt-4">
                     <label className="text-sm font-medium">
@@ -388,17 +373,20 @@ export default function CheckoutModal({
                     )}
                   </div>
                 )}
-
-                {/* Brick */}
                 <div className={`${blockBrick ? "opacity-40 pointer-events-none" : ""} pt-4`}>
                   <PaymentBrick
-                    key={method}
+                    key={`${method}-${Number(amount)}-${email}`}
                     initialization={initialization}
                     customization={customization}
-                    onSubmit={onSubmit}
+                    onSubmit={async (payload) => {
+                      console.log("[brick] submit payload", payload);
+                      const result = await onSubmit(payload);
+                      console.log("[brick] submit result", result);
+                      return result;
+                    }}
+                    onError={(err) => console.error("[brick] error", err)}
                   />
                 </div>
-
                 {showDoc && !docOk && (
                   <p className="mt-2 text-xs text-red-600">
                     Preencha CPF/CNPJ para liberar o pagamento via Pix.

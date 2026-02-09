@@ -4,9 +4,11 @@ import WeightLossQuizPage from "./pages/QuizPage";
 import Header from "./components/Header"
 import Footer from "./components/Footer"
 import Thanks from "./pages/Thanks";
+import Support from "./pages/SupportPage";
+import Terms from "./pages/Terms"
+import Privacy from "./pages/Privacy";
 import { initMercadoPago } from "@mercadopago/sdk-react";
 import { useEffect  } from "react";
-
 
 
 export default function App() {
@@ -27,9 +29,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/quiz/emagrecimento" element={<WeightLossQuizPage />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/thanks" element={<Thanks />} />
       </Routes>
-    <Footer/>
+      <Footer/>
     </>
   );
 }
