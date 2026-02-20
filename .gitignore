@@ -44,3 +44,8 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+/download
+# ebooks (não versionar)
+backend/download/
+backend/download/*.pdf

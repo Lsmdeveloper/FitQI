@@ -194,6 +194,9 @@ export default function CheckoutModal({
       );
 
       const data = await res.json();
+      if (data?.id) {
+        localStorage.setItem("fitiq_payment_id", String(data.id));
+      }
       if (!res.ok) {
         throw new Error(
           data?.error || data?.message || "Falha ao processar pagamento",
@@ -343,7 +346,7 @@ export default function CheckoutModal({
             ) : (
               <>
                 {showDoc && (
-                  <div className="pt-4">
+                  <div className="">
                     <label className="text-sm font-medium">
                       CPF/CNPJ (obrigatório para Pix)
                     </label>
@@ -379,9 +382,7 @@ export default function CheckoutModal({
                     initialization={initialization}
                     customization={customization}
                     onSubmit={async (payload) => {
-                      console.log("[brick] submit payload", payload);
                       const result = await onSubmit(payload);
-                      console.log("[brick] submit result", result);
                       return result;
                     }}
                     onError={(err) => console.error("[brick] error", err)}

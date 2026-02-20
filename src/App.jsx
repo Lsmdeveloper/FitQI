@@ -20,7 +20,7 @@ export default function App() {
       return;
     }
 
-    initMercadoPago(pk);
+    initMercadoPago(pk, { locale: "pt-BR" });
   }, []);
 
   return (
