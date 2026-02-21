@@ -9,46 +9,37 @@ export default function Thanks() {
   const [downloadUrl, setDownloadUrl] = useState("");
   const [error, setError] = useState("");
 
-  const paymentId = useMemo(() => {
-    return localStorage.getItem("fitiq_payment_id") || "";
-  }, []);
+  const paymentId = localStorage.getItem("fitiq_payment_id") || "";
 
   useEffect(() => {
     if (!paymentId) {
       navigate("/", { replace: true });
       return;
     }
-
     let alive = true;
-
     const run = async () => {
       try {
         const res = await fetch(`${API_URL}/payment-status/${paymentId}`, {
           cache: "no-store",
         });
-
         if (!res.ok) {
+          localStorage.removeItem("fitiq_payment_id");
           navigate("/", { replace: true });
           return;
         }
-
         const data = await res.json();
-
         if (!alive) return;
-
-        // 🔥 BLOQUEIO PRINCIPAL
         if (data?.status !== "approved" || !data?.download?.token) {
+          localStorage.removeItem("fitiq_payment_id");
           navigate("/", { replace: true });
           return;
         }
-
-        setDownloadUrl(
-          `${API_URL}/download/${paymentId}?token=${data.download.token}`
-        );
-
+        setDownloadUrl(`${API_URL}/download/${paymentId}?token=${data.download.token}`);
+        localStorage.removeItem("fitiq_payment_id");
         setLoading(false);
       } catch (e) {
         if (!alive) return;
+        localStorage.removeItem("fitiq_payment_id");
         navigate("/", { replace: true });
       }
     };
