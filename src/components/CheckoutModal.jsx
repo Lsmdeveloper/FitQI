@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PaymentBrick from "./PaymentBrick";
 import { Copy, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -71,13 +71,33 @@ export default function CheckoutModal({
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+  
+  const UPSELL_PRICE = Number(import.meta.env.VITE_UPSELL_PRICE || 24.9);
+  const [wantsUpsell, setWantsUpsell] = useState(false);
+  const baseAmount = Number(amount);
+  const finalAmount = wantsUpsell ? baseAmount + UPSELL_PRICE : baseAmount;
   const initialization = useMemo(
     () => ({
-      amount: Number(amount),
+      amount: Number(finalAmount),
       payer: { email: email || "" },
     }),
-    [amount, email],
+    [finalAmount, email],
   );
+
+  useEffect(() => {
+    if (!open) return;
+
+    const key = "fitiq_initiate_checkout";
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+
+    if (typeof window !== "undefined" && typeof window.fbq === "function") {
+      window.fbq("track", "InitiateCheckout", {
+        value: Number(finalAmount),
+        currency: "BRL",
+      });
+    }
+  }, [open, amount]);
 
   useEffect(() => {
     if (!open) return;
@@ -139,6 +159,9 @@ export default function CheckoutModal({
   const blockBrick = showDoc && !docOk;
   const [showPixCode, setShowPixCode] = useState(false);
   const [copied, setCopied] = useState(false);
+
+
+
   const handleClose = useCallback(() => {
     setPix(null);
     setPaymentId(null);
@@ -184,11 +207,11 @@ export default function CheckoutModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            amount: Number(amount),
+            amount: Number(finalAmount),
             payerEmail: email,
             selectedPaymentMethod,
             formData: nextFormData,
-            meta,
+            meta: { ...meta, upsell: wantsUpsell, upsell_price: UPSELL_PRICE },
           }),
         },
       );
@@ -212,9 +235,19 @@ export default function CheckoutModal({
       }
       return data;
     },
-    [amount, email, meta, method, navigate],
+    [amount, email, meta, method, navigate, wantsUpsell, UPSELL_PRICE],
   );
 
+  const handleBrickSubmit = useCallback(
+    async (payload) => {
+      return await onSubmit(payload);
+    },
+    [onSubmit]
+  );
+
+  const handleBrickError = useCallback((err) => {
+    console.error("[brick] error", err);
+  }, []);
   if (!open) return null;
 
   return (
@@ -228,7 +261,7 @@ export default function CheckoutModal({
         <div className="relative z-10 flex min-h-[100dvh] items-start justify-center">
         {/* Card com scroll interno */}
         <div
-          className="w-full max-w-md rounded-2xl bg-white"
+          className="w-full max-w-md rounded-2xl bg-white pt-4"
           onClick={(e) => e.stopPropagation()}
           style={{
             paddingBottom: "env(safe-area-inset-bottom)",
@@ -376,16 +409,45 @@ export default function CheckoutModal({
                     )}
                   </div>
                 )}
+
+                {/* Upsell (apenas quando ainda não gerou Pix) */}
+                <div className="mt-4 rounded-2xl border bg-gray-50 p-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4"
+                      checked={wantsUpsell}
+                      onChange={(e) => setWantsUpsell(e.target.checked)}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold">
+                       Guia 21 Dias (recomendado)
+                        <span className="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          +R$ {UPSELL_PRICE.toFixed(2).replace(".", ",")}
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-600">
+                        Guia + Calendário + Planilha para seguir sem pensar.
+                      </p>
+                    </div>
+                  </label>
+
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Total</span>
+                    <span className="font-semibold">
+                      R$ {finalAmount.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                </div>
+
                 <div className={`${blockBrick ? "opacity-40 pointer-events-none" : ""} pt-4`}>
+                  
                   <PaymentBrick
-                    key={`${method}-${Number(amount)}-${email}`}
+                    key={`${method}-${Number(finalAmount)}-${email}-${wantsUpsell ? "u1" : "u0"}`}
                     initialization={initialization}
                     customization={customization}
-                    onSubmit={async (payload) => {
-                      const result = await onSubmit(payload);
-                      return result;
-                    }}
-                    onError={(err) => console.error("[brick] error", err)}
+                    onSubmit={handleBrickSubmit}
+                    onError={handleBrickError}
                   />
                 </div>
                 {showDoc && !docOk && (
@@ -400,5 +462,4 @@ export default function CheckoutModal({
       </div>
     </div>
   );
-
 }

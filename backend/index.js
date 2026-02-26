@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { MercadoPagoConfig, Payment } from "mercadopago";
+import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -65,13 +65,19 @@ function getEbookPathByProfile(profile) {
 
 const mpClient = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN });
 const paymentClient = new Payment(mpClient);
+const preferenceClient = new Preference(mpClient);
+
+const upsellByParent = new Map(); 
+
+async function fulfillApprovedUpsell(parentPaymentId) {
+  upsellByParent.set(String(parentPaymentId), true);
+  console.log("✅ UPSSELL liberado para parent:", parentPaymentId);
+}
 const PORT = process.env.PORT || 3333;
 
 app.get("/", (req, res) => {
   res.send("Backend FitIQ rodando");
 });
-
-// ===== Helpers =====
 
 function extractPaymentId(req) {
   return (
@@ -84,7 +90,6 @@ function extractPaymentId(req) {
 }
 
 async function getPaymentById(paymentId) {
-  // SDK novo: paymentClient.get({ id })
   const resp = await paymentClient.get({ id: String(paymentId) });
   return resp;
 }
@@ -124,7 +129,6 @@ async function fulfillApprovedPayment(p) {
   });
 }
 
-// ===== Routes =====
 app.post("/create-payment", async (req, res) => {
   try {
     const { amount, payerEmail, formData, meta } = req.body || {};
@@ -177,14 +181,20 @@ app.post("/create-payment", async (req, res) => {
       ...(meta || {}),
       profile: safeMeta.profile,
     };
-    body.external_reference = JSON.stringify({
-      profile: safeMeta.profile,
-      email: payerEmail,
-      ts: Date.now(),
-    });
+    body.external_reference = `fitiq:${safeMeta.profile}:${Date.now()}`;
+
+    console.log("[create-payment] amount:", amount);
+    console.log("[create-payment] meta:", meta);
+    console.log("[create-payment] wantsUpsell:", meta?.upsell, "upsell_price:", meta?.upsell_price);
 
     const created = await paymentClient.create({ body });
-
+   
+    console.log("[create-payment] MP created:", {
+      id: created?.id,
+      status: created?.status,
+      external_reference: created?.external_reference,
+      metadata: created?.metadata,
+    });
     const tx = created?.point_of_interaction?.transaction_data;
 
     return res.status(200).json({
@@ -221,17 +231,39 @@ app.get("/payment-status/:id", async (req, res) => {
     if (p?.status === "approved" && !paymentsStore.has(id)) {
       await fulfillApprovedPayment(p);
     }
+
+    const meta = p?.metadata || {};
+    const externalRef = String(p?.external_reference || "");
+
+    //1) Detecta se ESTE payment foi compra com upsell embutido
+    const upsellFromThisPayment =
+      meta?.upsell === true ||
+      String(meta?.upsell).toLowerCase() === "true" ||
+      String(meta?.upsell) === "1";
+
+    const parentPaymentId =
+      meta?.parent_payment_id ||
+      (externalRef.startsWith("upsell:") ? externalRef.replace("upsell:", "") : null);
+
+    // 3) Detecta se o pai já tem upsell liberado (fallback)
+    const upsellAlreadyUnlockedForParent =
+      parentPaymentId ? upsellByParent.get(String(parentPaymentId)) === true : false;
+
+    // final: upsell é true se foi comprado embutido OU já está liberado no pai
+    const upsell = upsellFromThisPayment || upsellAlreadyUnlockedForParent;
+
     const record = paymentsStore.get(id);
+
     return res.json({
       id: p.id,
       status: p.status,
       status_detail: p.status_detail,
-      download: record && record.status === "approved"
-        ? {
-            token: record.downloadToken,
-            profile: record.profile,
-          }
-        : null,
+      upsell,                    
+      meta: { upsell: meta?.upsell, parent_payment_id: meta?.parent_payment_id }, // opcional (debug)
+      download:
+        record && record.status === "approved"
+          ? { token: record.downloadToken, profile: record.profile }
+          : null,
     });
   } catch (err) {
     console.error("Erro ao consultar payment-status:", err?.cause || err);
@@ -241,6 +273,7 @@ app.get("/payment-status/:id", async (req, res) => {
 
 app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
+
   try {
     const paymentId =
       req.body?.data?.id ||
@@ -249,15 +282,58 @@ app.post("/webhook", async (req, res) => {
       req.query?.id;
 
     if (!paymentId) return;
+
     const p = await paymentClient.get({ id: String(paymentId) });
     console.log("WEBHOOK payment:", paymentId, p?.status);
-    if (p?.status === "approved") {
-      await fulfillApprovedPayment(p);
+
+    if (p?.status !== "approved") return;
+
+    const externalRef = String(p?.external_reference || "");
+    const meta = p?.metadata || {};
+
+    const isUpsell =
+      externalRef.startsWith("upsell:") ||
+      meta?.upsell === true ||
+      Boolean(meta?.parent_payment_id);
+
+    if (isUpsell) {
+      const parentPaymentId =
+        meta?.parent_payment_id || externalRef.replace("upsell:", "");
+
+      if (!parentPaymentId) {
+        console.warn("UPSLL approved but missing parentPaymentId", { paymentId });
+        return;
+      }
+
+      await fulfillApprovedUpsell(parentPaymentId);
+      
+      return;
     }
+    await fulfillApprovedPayment(p);
   } catch (err) {
     console.error("webhook error:", err?.cause || err);
   }
 });
+
+// app.post("/webhook", async (req, res) => {
+//   res.sendStatus(200);
+//   try {
+//     const paymentId =
+//       req.body?.data?.id ||
+//       req.body?.id ||
+//       req.query?.["data.id"] ||
+//       req.query?.id;
+
+//     if (!paymentId) return;
+//     const p = await paymentClient.get({ id: String(paymentId) });
+//     console.log("WEBHOOK payment:", paymentId, p?.status);
+//     if (p?.status === "approved") {
+//       await fulfillApprovedPayment(p);
+//     }
+//   } catch (err) {
+//     console.error("webhook error:", err?.cause || err);
+//   }
+// });
 
 app.get("/download/:paymentId", (req, res) => {
   const paymentId = String(req.params.paymentId);
@@ -279,4 +355,66 @@ app.get("/download/:paymentId", (req, res) => {
   return res.download(pdfPath, `FitIQ-${record.profile}.pdf`);
 });
 
+app.post("/upsell/create", async (req, res) => {
+  try {
+    const { paymentId } = req.body || {};
+    if (!paymentId) {
+      return res.status(400).json({ message: "paymentId é obrigatório" });
+    }
+    if (upsellByParent.get(paymentId) === true) {
+      return res.status(200).json({
+        checkoutUrl: null,
+        alreadyPurchased: true,
+        message: "Upsell já liberado para este pagamento.",
+      });
+    }
+
+    const FRONT_URL = process.env.FRONT_URL || "http://localhost:5173";
+    const externalReference = `upsell:${paymentId}`;
+
+    const pref = await preferenceClient.create({
+      body: {
+        external_reference: externalReference,
+        metadata: {
+          upsell: true,
+          parent_payment_id: paymentId,
+        },
+        items: [
+          {
+            id: "kit-21-dias",
+            title: "Kit 21 Dias (Guia + Calendário + Planilha)",
+            quantity: 1,
+            currency_id: "BRL",
+            unit_price: Number(process.env.VITE_UPSELL_PRICE),
+          },
+        ],
+
+        // Você pode limitar meios se quiser (ex: pix + cartão)
+        payment_methods: {
+          excluded_payment_types: [],
+          excluded_payment_methods: [],
+          installments: 12,
+        },
+
+        back_urls: {
+          success: `${FRONT_URL}/thanks`,
+          pending: `${FRONT_URL}/thanks`,
+          failure: `${FRONT_URL}/thanks`,
+        },
+        auto_return: "approved",
+      },
+    });
+
+    const checkoutUrl = pref?.init_point || pref?.sandbox_init_point;
+
+    if (!checkoutUrl) {
+      return res.status(500).json({ message: "Não foi possível gerar checkoutUrl do upsell." });
+    }
+
+    return res.status(200).json({ checkoutUrl });
+  } catch (err) {
+    console.error("UPSSELL CREATE ERROR", err);
+    return res.status(500).json({ message: "Erro ao criar upsell." });
+  }
+});
 app.listen(PORT, () => console.log("Listening", PORT));
