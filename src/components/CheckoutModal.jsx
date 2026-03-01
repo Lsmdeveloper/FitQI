@@ -83,7 +83,6 @@ export default function CheckoutModal({
     }),
     [finalAmount, email],
   );
-
   useEffect(() => {
     if (!open) return;
 
@@ -159,8 +158,6 @@ export default function CheckoutModal({
   const blockBrick = showDoc && !docOk;
   const [showPixCode, setShowPixCode] = useState(false);
   const [copied, setCopied] = useState(false);
-
-
 
   const handleClose = useCallback(() => {
     setPix(null);
@@ -411,35 +408,63 @@ export default function CheckoutModal({
                 )}
 
                 {/* Upsell (apenas quando ainda não gerou Pix) */}
-                <div className="mt-4 rounded-2xl border bg-gray-50 p-3">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                <div className="mt-5 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-md">
+                  <div className="mb-3 inline-block bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                    🔥 Mais escolhido pelos alunos
+                  </div>
+                  <label className="flex gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4"
+                      className="mt-2 h-5 w-5 accent-emerald-600"
                       checked={wantsUpsell}
                       onChange={(e) => setWantsUpsell(e.target.checked)}
                     />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold">
-                       Guia 21 Dias (recomendado)
-                        <span className="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                          +R$ {UPSELL_PRICE.toFixed(2).replace(".", ",")}
-                        </span>
-                      </p>
-                      <p className="mt-0.5 text-xs text-gray-600">
-                        Guia + Calendário + Planilha para seguir sem pensar.
-                      </p>
+                    <div className="flex gap-2">
+                      <img
+                        src="/book.png"
+                        alt="Guia 21 Dias"
+                        className="max-h-[35%] max-w-[35%] object-contain"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-base font-bold text-gray-900 leading-tight">
+                             Não dependa da motivação
+                            </p>
+                            <p className="text-sm font-semibold text-gray-800">
+                              Siga um plano fechado por 21 dias
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full whitespace-nowrap">
+                            +R$ {UPSELL_PRICE.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-600">
+                          Calendário alimentar + checklist diário + organização estratégica para acelerar seus resultados.
+                        </p>
+                        <ul className="mt-3 text-xs text-gray-700 space-y-1">
+                          <li>✔ Evita sair da dieta</li>
+                          <li>✔ Elimina improviso</li>
+                          <li>✔ Aumenta consistência</li>
+                          <li>✔ Resultado visível mais rápido</li>
+                        </ul>
+                        {/* Ancoragem */}
+                        <p className="mt-3 text-xs text-gray-500">
+                          Valor normal R$ 67,00 — disponível agora por apenas{" "}
+                          <span className="font-semibold text-emerald-700">
+                            R$ {UPSELL_PRICE.toFixed(2).replace(".", ",")}
+                          </span>
+                        </p>
+                      </div>
                     </div>
                   </label>
-
-                  <div className="mt-3 flex items-center justify-between text-sm">
+                  <div className="mt-4 flex items-center justify-between text-sm border-t pt-3">
                     <span className="text-gray-600">Total</span>
-                    <span className="font-semibold">
+                    <span className="text-xl font-bold text-gray-900">
                       R$ {finalAmount.toFixed(2).replace(".", ",")}
                     </span>
                   </div>
                 </div>
-
                 <div className={`${blockBrick ? "opacity-40 pointer-events-none" : ""} pt-4`}>
                   
                   <PaymentBrick
